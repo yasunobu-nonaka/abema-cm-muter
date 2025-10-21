@@ -1,0 +1,17 @@
+# Audio processing
+PyAudio>=0.2.11
+librosa>=0.10.1
+numpy>=1.24.0
+scipy>=1.10.0
+
+# Audio fingerprinting and matching
+pyacoustid>=1.3.0
+pydub>=0.25.1
+
+# System control
+pycaw>=20230407; sys_platform == "win32"
+pyobjc>=9.0; sys_platform == "darwin"
+
+# Configuration and utilities
+configparser>=5.3.0
+psutil>=5.9.0
