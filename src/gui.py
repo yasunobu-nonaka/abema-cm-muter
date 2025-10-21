@@ -65,7 +65,7 @@ class CMMuterGUI:
         return {
             "audio": {
                 "sample_rate": 44100,
-                "channels": 2,
+                "channels": 1,
                 "chunk_size": 1024,
                 "record_duration": 15,
                 "match_threshold": 0.8,
