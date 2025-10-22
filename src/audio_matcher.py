@@ -186,9 +186,33 @@ class AudioMatcher:
     def remove_cm_pattern(self, pattern_name: str) -> bool:
         """CMパターンを削除"""
         if pattern_name in self.cm_patterns:
-            del self.cm_patterns[pattern_name]
-            print(f"CMパターンを削除しました: {pattern_name}")
-            return True
+            try:
+                # ファイルパスを取得
+                wav_filepath = self.cm_patterns[pattern_name]['filepath']
+                json_filepath = wav_filepath.replace('.wav', '.json')
+                
+                # WAVファイルを削除
+                if os.path.exists(wav_filepath):
+                    os.remove(wav_filepath)
+                    print(f"WAVファイルを削除しました: {wav_filepath}")
+                else:
+                    print(f"警告: WAVファイルが見つかりません: {wav_filepath}")
+                
+                # JSONファイルを削除
+                if os.path.exists(json_filepath):
+                    os.remove(json_filepath)
+                    print(f"JSONファイルを削除しました: {json_filepath}")
+                else:
+                    print(f"警告: JSONファイルが見つかりません: {json_filepath}")
+                
+                # メモリから削除
+                del self.cm_patterns[pattern_name]
+                print(f"CMパターンを削除しました: {pattern_name}")
+                return True
+                
+            except Exception as e:
+                print(f"CMパターン削除エラー: {e}")
+                return False
         return False
     
     def get_cm_patterns(self) -> Dict:
