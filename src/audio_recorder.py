@@ -67,15 +67,27 @@ class AudioRecorder:
             # システム音声デバイスを取得
             device_index = self.find_system_audio_device()
             
+            # デバイスのサポートするチャンネル数を確認
+            device_info = self.audio.get_device_info_by_index(device_index)
+            max_channels = device_info['maxInputChannels']
+            
+            # 設定されたチャンネル数がデバイスでサポートされているかチェック
+            actual_channels = min(self.channels, max_channels)
+            if actual_channels != self.channels:
+                print(f"警告: デバイスは{max_channels}チャンネルまでサポートしています。{actual_channels}チャンネルで録音します。")
+            
             # オーディオストリームを開く
             self.stream = self.audio.open(
                 format=pyaudio.paInt16,
-                channels=self.channels,
+                channels=actual_channels,
                 rate=self.sample_rate,
                 input=True,
                 input_device_index=device_index,
                 frames_per_buffer=self.chunk_size
             )
+            
+            # 実際に使用するチャンネル数を保存
+            self.actual_channels = actual_channels
             
             self.is_recording = True
             self.audio_data = []
@@ -148,9 +160,12 @@ class AudioRecorder:
         # ディレクトリが存在しない場合は作成
         os.makedirs(os.path.dirname(filepath), exist_ok=True)
         
+        # 実際に使用したチャンネル数を取得（フォールバック）
+        channels_to_use = getattr(self, 'actual_channels', self.channels)
+        
         # WAVファイルに保存
         with wave.open(filepath, 'wb') as wf:
-            wf.setnchannels(self.channels)
+            wf.setnchannels(channels_to_use)
             wf.setsampwidth(self.audio.get_sample_size(pyaudio.paInt16))
             wf.setframerate(self.sample_rate)
             wf.writeframes(b''.join(self.audio_data))
@@ -160,7 +175,7 @@ class AudioRecorder:
             'filename': filename,
             'timestamp': timestamp,
             'sample_rate': self.sample_rate,
-            'channels': self.channels,
+            'channels': channels_to_use,
             'duration': len(self.audio_data) * self.chunk_size / self.sample_rate,
             'file_size': os.path.getsize(filepath)
         }

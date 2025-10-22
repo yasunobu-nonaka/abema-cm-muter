@@ -43,6 +43,7 @@ class CMMuterGUI:
         self.is_recording = False
         self.is_monitoring = False
         self.cm_detected = False
+        self.recording_start_time = None
         
         # GUI要素を作成
         self._create_widgets()
@@ -65,7 +66,7 @@ class CMMuterGUI:
         return {
             "audio": {
                 "sample_rate": 44100,
-                "channels": 2,
+                "channels": 1,
                 "chunk_size": 1024,
                 "record_duration": 15,
                 "match_threshold": 0.8,
@@ -277,6 +278,7 @@ class CMMuterGUI:
         """録音を停止"""
         filepath = self.audio_recorder.stop_recording()
         self.is_recording = False
+        self.recording_start_time = None
         self.record_button.config(text="録音開始")
         self.recording_status_label.config(text="停止中", foreground="black")
         self.recording_time_label.config(text="00:00")
@@ -291,13 +293,18 @@ class CMMuterGUI:
     def _start_recording_timer(self):
         """録音タイマーを開始"""
         if self.is_recording:
-            start_time = time.time()
-            while self.is_recording:
-                elapsed = time.time() - start_time
-                minutes = int(elapsed // 60)
-                seconds = int(elapsed % 60)
-                self.recording_time_label.config(text=f"{minutes:02d}:{seconds:02d}")
-                time.sleep(0.1)
+            self.recording_start_time = time.time()
+            self._update_recording_timer()
+    
+    def _update_recording_timer(self):
+        """録音タイマーを更新（非ブロッキング）"""
+        if self.is_recording and self.recording_start_time:
+            elapsed = time.time() - self.recording_start_time
+            minutes = int(elapsed // 60)
+            seconds = int(elapsed % 60)
+            self.recording_time_label.config(text=f"{minutes:02d}:{seconds:02d}")
+            # 100ms後に再帰的に呼び出し
+            self.root.after(100, self._update_recording_timer)
     
     def _toggle_monitoring(self):
         """監視の開始/停止を切り替え"""
