@@ -8,6 +8,7 @@ import sys
 import os
 import json
 import argparse
+import time
 from pathlib import Path
 
 # プロジェクトルートをPythonパスに追加
@@ -48,6 +49,7 @@ def check_system_requirements():
     
     if system == 'darwin':  # macOS
         print("✓ macOSが検出されました")
+        
         # chromaprintの確認
         try:
             import subprocess
@@ -61,6 +63,26 @@ def check_system_requirements():
                 return False
         except Exception as e:
             print(f"✗ chromaprintの確認に失敗: {e}")
+            return False
+        
+        # BlackHoleの確認
+        if not check_blackhole_installation():
+            print("\n⚠️  BlackHoleがインストールされていません")
+            print("システム音声を録音するには、BlackHoleのインストールと設定が必要です。")
+            print("\nセットアップ手順:")
+            print("1. BlackHoleをインストール:")
+            print("   brew install blackhole-2ch")
+            print("\n2. Audio MIDI Setupを開く:")
+            print("   open -a 'Audio MIDI Setup'")
+            print("\n3. マルチ出力デバイスを作成:")
+            print("   - 左下の'+'ボタンをクリック")
+            print("   - 'マルチ出力デバイスを作成'を選択")
+            print("   - 'MacBook Air Speakers'と'BlackHole 2ch'の両方にチェック")
+            print("   - デバイス名を'Multi-Output Device'などに設定")
+            print("\n4. システム環境設定で出力デバイスを変更:")
+            print("   - システム環境設定 > サウンド > 出力")
+            print("   - 作成したマルチ出力デバイスを選択")
+            print("\n5. アプリケーションを再起動してテスト")
             return False
     
     elif system == 'windows':
@@ -76,6 +98,31 @@ def check_system_requirements():
         return False
     
     return True
+
+
+def check_blackhole_installation():
+    """BlackHoleのインストール状況をチェック"""
+    try:
+        from audio_recorder import AudioRecorder
+        # ダミー設定でAudioRecorderを作成
+        dummy_config = {"audio": {"sample_rate": 44100, "channels": 2, "chunk_size": 1024, "record_duration": 15, "match_threshold": 0.8, "silence_threshold": 0.01}}
+        recorder = AudioRecorder(dummy_config)
+        devices = recorder.get_audio_devices()
+        
+        # BlackHoleデバイスを検索
+        for device in devices:
+            device_name = device['name'].lower()
+            if 'blackhole' in device_name:
+                print(f"✓ BlackHoleが検出されました: {device['name']}")
+                recorder.cleanup()
+                return True
+        
+        recorder.cleanup()
+        return False
+        
+    except Exception as e:
+        print(f"BlackHole確認エラー: {e}")
+        return False
 
 
 def create_directories():
@@ -112,21 +159,72 @@ def test_audio_devices():
     """オーディオデバイスをテスト"""
     try:
         recorder = AudioRecorder({"audio": {"sample_rate": 44100, "channels": 2, "chunk_size": 1024, "record_duration": 15, "match_threshold": 0.8, "silence_threshold": 0.01}, "system": {"mute_volume": 0.0, "restore_volume": 0.7, "screen_dim_brightness": 0.1, "overlay_opacity": 0.9}, "gui": {"window_width": 600, "window_height": 500, "theme": "default"}})
+        
+        # オーディオ設定の診断を実行
+        setup_ok = recorder.diagnose_audio_setup()
+        
         devices = recorder.get_audio_devices()
         
-        print("利用可能なオーディオデバイス:")
+        print("\n利用可能なオーディオデバイス:")
+        blackhole_found = False
         for device in devices:
-            print(f"  {device['index']}: {device['name']} (チャンネル: {device['channels']})")
+            device_name = device['name']
+            is_system_device = any(keyword in device_name.lower() for keyword in [
+                'blackhole', 'loopback', 'soundflower', 'multi-output', 'aggregate'
+            ])
+            status = " [システム音声対応]" if is_system_device else ""
+            if 'blackhole' in device_name.lower():
+                blackhole_found = True
+            print(f"  {device['index']}: {device_name} (チャンネル: {device['channels']}){status}")
+        
+        if not blackhole_found:
+            print("\n⚠️  BlackHoleデバイスが見つかりません")
+            print("   システム音声を録音するには、BlackHoleのインストールが必要です")
         
         system_device = recorder.find_system_audio_device()
-        print(f"システム音声デバイス: {system_device}")
+        device_info = recorder.audio.get_device_info_by_index(system_device)
+        print(f"\n選択されたシステム音声デバイス: {system_device} - {device_info['name']}")
         
         recorder.cleanup()
-        return True
+        return setup_ok
     except Exception as e:
         print(f"✗ オーディオデバイステストに失敗: {e}")
         return False
 
+
+def test_recording():
+    """録音テストを実行"""
+    try:
+        print("\n=== 録音テスト ===")
+        print("5秒間の録音テストを開始します...")
+        print("何か音を再生してからEnterキーを押してください")
+        input("準備ができたらEnterキーを押してください...")
+        
+        config = {"audio": {"sample_rate": 44100, "channels": 2, "chunk_size": 1024, "record_duration": 5, "match_threshold": 0.8, "silence_threshold": 0.01}}
+        recorder = AudioRecorder(config)
+        
+        if recorder.start_recording():
+            print("録音中... (5秒間)")
+            time.sleep(5)
+            filepath = recorder.stop_recording()
+            
+            if filepath:
+                print(f"✓ 録音完了: {filepath}")
+                print("ファイルを再生して音声が録音されているか確認してください")
+                return True
+            else:
+                print("✗ 録音に失敗しました")
+                return False
+        else:
+            print("✗ 録音を開始できませんでした")
+            return False
+            
+    except Exception as e:
+        print(f"✗ 録音テストに失敗: {e}")
+        return False
+    finally:
+        if 'recorder' in locals():
+            recorder.cleanup()
 
 def test_system_control():
     """システム制御をテスト"""
@@ -202,9 +300,15 @@ def main():
             return 1
         
         if not test_audio_devices():
+            print("\n⚠️  オーディオ設定に問題があります。上記の指示に従って設定を修正してください。")
             return 1
         
         if not test_system_control():
+            return 1
+        
+        # 録音テストを実行
+        if not test_recording():
+            print("\n⚠️  録音テストに失敗しました。オーディオ設定を確認してください。")
             return 1
         
         print("✓ すべてのテストが完了しました")

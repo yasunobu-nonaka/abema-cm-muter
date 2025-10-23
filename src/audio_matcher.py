@@ -59,9 +59,27 @@ class AudioMatcher:
     def _generate_fingerprint(self, audio_file: str) -> Optional[str]:
         """音声ファイルからフィンガープリントを生成"""
         try:
+            # ファイルの存在確認
+            if not os.path.exists(audio_file):
+                print(f"ファイルが見つかりません: {audio_file}")
+                return None
+            
+            # ファイルサイズの確認
+            file_size = os.path.getsize(audio_file)
+            if file_size < 1000:  # 1KB未満の場合は無音の可能性
+                print(f"警告: ファイルサイズが小さすぎます ({file_size} bytes): {audio_file}")
+            
             # acoustidを使用してフィンガープリントを生成
             fingerprint, duration = acoustid.fingerprint_file(audio_file)
+            
+            if not fingerprint or len(fingerprint) < 10:
+                print(f"警告: 生成されたフィンガープリントが短すぎます (長さ: {len(fingerprint) if fingerprint else 0}): {audio_file}")
+                print(f"  これは音声ファイルが無音または非常に短い可能性があります")
+                return None
+            
+            print(f"✓ フィンガープリント生成成功: {audio_file} (長さ: {len(fingerprint)}, 時間: {duration:.1f}秒)")
             return fingerprint
+            
         except Exception as e:
             print(f"フィンガープリント生成エラー ({audio_file}): {e}")
             return None
