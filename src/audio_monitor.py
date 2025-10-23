@@ -62,15 +62,33 @@ class AudioMonitor:
             # システム音声デバイスを取得
             device_index = self.recorder.find_system_audio_device()
             
+            # デバイスのサポートするチャンネル数を確認
+            device_info = self.audio.get_device_info_by_index(device_index)
+            max_channels = device_info['maxInputChannels']
+            device_name = device_info['name']
+            
+            print(f"監視デバイス: {device_name}")
+            print(f"デバイスサポートチャンネル数: {max_channels}")
+            print(f"設定チャンネル数: {self.channels}")
+            
+            # 設定されたチャンネル数がデバイスでサポートされているかチェック
+            actual_channels = min(self.channels, max_channels)
+            if actual_channels != self.channels:
+                print(f"⚠️  警告: デバイスは{max_channels}チャンネルまでサポートしています。{actual_channels}チャンネルで監視します。")
+            
             # オーディオストリームを開く
             self.stream = self.audio.open(
                 format=pyaudio.paInt16,
-                channels=self.channels,
+                channels=actual_channels,
                 rate=self.sample_rate,
                 input=True,
                 input_device_index=device_index,
                 frames_per_buffer=self.chunk_size
             )
+            
+            # 実際に使用するチャンネル数を保存
+            self.actual_channels = actual_channels
+            print(f"✓ 監視開始: {actual_channels}チャンネル, {self.sample_rate}Hz")
             
             self.is_monitoring = True
             self.audio_buffer = []

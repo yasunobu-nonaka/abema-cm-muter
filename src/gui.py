@@ -285,8 +285,23 @@ class CMMuterGUI:
         
         if filepath:
             messagebox.showinfo("完了", f"CMパターンを保存しました:\n{filepath}")
-            # 音声監視に新しいパターンを追加
-            self.audio_monitor.add_cm_pattern(filepath, {})
+            
+            # 保存されたJSONファイルからメタデータを読み込む
+            metadata_file = filepath.replace('.wav', '.json')
+            try:
+                with open(metadata_file, 'r', encoding='utf-8') as f:
+                    metadata = json.load(f)
+                
+                # 音声監視に新しいパターンを追加（正しいメタデータと共に）
+                if self.audio_monitor.add_cm_pattern(filepath, metadata):
+                    print(f"✓ CMパターンを監視システムに追加しました: {metadata['filename']}")
+                else:
+                    print(f"⚠️  CMパターンの追加に失敗しました: {metadata['filename']}")
+                    
+            except Exception as e:
+                print(f"⚠️  メタデータの読み込みに失敗: {e}")
+                # メタデータが読み込めない場合は空の辞書で追加を試行
+                self.audio_monitor.add_cm_pattern(filepath, {})
         else:
             messagebox.showerror("エラー", "録音に失敗しました")
     

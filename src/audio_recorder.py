@@ -45,18 +45,45 @@ class AudioRecorder:
         """システム音声（ループバック）デバイスを検索"""
         devices = self.get_audio_devices()
         
-        # macOSの場合、システム音声をキャプチャするデバイスを探す
+        # 優先順位付きでシステム音声をキャプチャするデバイスを探す
+        priority_keywords = [
+            'blackhole',  # 最優先
+            'loopback',   # 次に優先
+            'soundflower', 'multi-output', 'aggregate'
+        ]
+        
+        # 優先順位の高いデバイスから検索
+        for keyword in priority_keywords:
+            for device in devices:
+                device_name = device['name'].lower()
+                if keyword in device_name:
+                    print(f"✓ システム音声デバイスを発見: {device['name']} (キーワード: {keyword})")
+                    return device['index']
+        
+        # その他のシステム音声デバイスを検索
         for device in devices:
             device_name = device['name'].lower()
-            # システム音声をキャプチャできるデバイス名のパターン
             if any(keyword in device_name for keyword in [
-                'blackhole', 'soundflower', 'loopback', 'multi-output',
-                'aggregate', 'system', 'stereo mix', 'what u hear'
+                'system', 'stereo mix', 'what u hear'
             ]):
+                print(f"✓ システム音声デバイスを発見: {device['name']}")
                 return device['index']
         
-        # デフォルトの入力デバイスを使用
-        return self.audio.get_default_input_device_info()['index']
+        # システム音声デバイスが見つからない場合の警告
+        print("⚠️  警告: システム音声をキャプチャできるデバイスが見つかりません")
+        print("   現在のデバイス一覧:")
+        for device in devices:
+            print(f"     {device['index']}: {device['name']} (チャンネル: {device['channels']})")
+        print("\n   システム音声を録音するには、以下のいずれかをインストールしてください:")
+        print("   - BlackHole: brew install blackhole-2ch")
+        print("   - Loopback: https://rogueamoeba.com/loopback/")
+        print("   - Soundflower: https://github.com/mattingalls/Soundflower")
+        print("\n   インストール後、Audio MIDI Setupでマルチ出力デバイスを設定してください。")
+        
+        # デフォルトの入力デバイスを使用（警告付き）
+        default_device = self.audio.get_default_input_device_info()['index']
+        print(f"   デフォルトの入力デバイスを使用します: {devices[default_device]['name']}")
+        return default_device
     
     def start_recording(self, callback: Optional[Callable] = None):
         """録音を開始"""
@@ -70,11 +97,16 @@ class AudioRecorder:
             # デバイスのサポートするチャンネル数を確認
             device_info = self.audio.get_device_info_by_index(device_index)
             max_channels = device_info['maxInputChannels']
+            device_name = device_info['name']
+            
+            print(f"録音デバイス: {device_name}")
+            print(f"デバイスサポートチャンネル数: {max_channels}")
+            print(f"設定チャンネル数: {self.channels}")
             
             # 設定されたチャンネル数がデバイスでサポートされているかチェック
             actual_channels = min(self.channels, max_channels)
             if actual_channels != self.channels:
-                print(f"警告: デバイスは{max_channels}チャンネルまでサポートしています。{actual_channels}チャンネルで録音します。")
+                print(f"⚠️  警告: デバイスは{max_channels}チャンネルまでサポートしています。{actual_channels}チャンネルで録音します。")
             
             # オーディオストリームを開く
             self.stream = self.audio.open(
@@ -88,6 +120,7 @@ class AudioRecorder:
             
             # 実際に使用するチャンネル数を保存
             self.actual_channels = actual_channels
+            print(f"✓ 録音開始: {actual_channels}チャンネル, {self.sample_rate}Hz")
             
             self.is_recording = True
             self.audio_data = []
