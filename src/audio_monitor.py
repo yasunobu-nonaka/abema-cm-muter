@@ -59,8 +59,8 @@ class AudioMonitor:
             return False
         
         try:
-            # システム音声デバイスを取得
-            device_index = self.recorder.find_system_audio_device()
+            # マイクデバイスを取得
+            device_index = self.recorder.find_microphone_device()
             
             # デバイスのサポートするチャンネル数を確認
             device_info = self.audio.get_device_info_by_index(device_index)
@@ -129,6 +129,12 @@ class AudioMonitor:
             try:
                 # 音声データを読み取り
                 data = self.stream.read(self.chunk_size, exception_on_overflow=False)
+                
+                # マイク感度調整を適用
+                data = self.recorder.apply_microphone_gain(data)
+                
+                # ノイズ除去を適用
+                data = self.recorder.apply_noise_reduction(data)
                 
                 # バッファに追加
                 with self.buffer_lock:

@@ -1,6 +1,7 @@
 """
 音声録音機能
-システム音声（再生中の音）をキャプチャしてCMパターンとして保存する
+マイクで音声を録音してCMパターンとして保存する
+ノイズ除去機能とマイク感度調整機能を含む
 """
 
 import pyaudio
@@ -14,7 +15,7 @@ import threading
 
 
 class AudioRecorder:
-    """システム音声を録音するクラス"""
+    """マイクで音声を録音するクラス（ノイズ除去・感度調整機能付き）"""
     
     def __init__(self, config: dict):
         self.config = config
@@ -44,8 +45,8 @@ class AudioRecorder:
         return devices
     
     def diagnose_audio_setup(self):
-        """オーディオ設定の診断を行う"""
-        print("=== オーディオ設定診断 ===")
+        """マイク設定の診断を行う"""
+        print("=== マイク設定診断 ===")
         
         # デバイス一覧を取得
         devices = self.get_audio_devices()
@@ -53,137 +54,86 @@ class AudioRecorder:
         # デフォルトデバイスを確認
         try:
             default_input = self.audio.get_default_input_device_info()
-            default_output = self.audio.get_default_output_device_info()
             print(f"デフォルト入力デバイス: {default_input['name']}")
-            print(f"デフォルト出力デバイス: {default_output['name']}")
         except Exception as e:
-            print(f"デフォルトデバイス取得エラー: {e}")
+            print(f"デフォルト入力デバイス取得エラー: {e}")
+            return False
         
-        # BlackHoleの状態を確認
-        blackhole_found = False
+        # マイクデバイスの確認
+        microphone_found = False
         for device in devices:
-            if 'blackhole' in device['name'].lower():
-                blackhole_found = True
-                print(f"BlackHoleデバイス: {device['name']}")
+            device_name = device['name'].lower()
+            if ('microphone' in device_name or 'mic' in device_name) and device['channels'] > 0:
+                microphone_found = True
+                print(f"✓ マイクデバイス: {device['name']}")
                 print(f"  - チャンネル数: {device['channels']}")
                 print(f"  - サンプルレート: {device['sample_rate']}")
                 break
         
-        if not blackhole_found:
-            print("⚠️  BlackHoleデバイスが見つかりません")
-            print("   以下のコマンドでインストールしてください:")
-            print("   brew install blackhole-2ch")
-        
-        # マルチ出力デバイスの確認
-        multi_output_found = False
-        for device in devices:
-            if 'multi-output' in device['name'].lower():
-                multi_output_found = True
-                print(f"マルチ出力デバイス: {device['name']}")
-                break
-        
-        if not multi_output_found:
-            print("⚠️  マルチ出力デバイスが見つかりません")
-            print("   Audio MIDI Setupでマルチ出力デバイスを作成してください")
-        
-        # システム出力デバイスの確認
-        try:
-            default_output = self.audio.get_default_output_device_info()
-            if 'multi-output' not in default_output['name'].lower():
-                print("⚠️  システム出力デバイスがマルチ出力デバイスに設定されていません")
-                print(f"   現在の出力デバイス: {default_output['name']}")
-                print("   以下の手順で設定を変更してください:")
-                print("   1. システム環境設定 > サウンド > 出力")
-                print("   2. 'Multi-Output Device'を選択")
-                print("   3. アプリケーションを再起動")
-                return False
-            else:
-                print(f"✓ システム出力デバイス: {default_output['name']}")
-        except Exception as e:
-            print(f"出力デバイス確認エラー: {e}")
+        if not microphone_found:
+            print("⚠️  マイクデバイスが見つかりません")
+            print("   システム環境設定 > セキュリティとプライバシー > プライバシー > マイク")
+            print("   でアプリケーションにマイクアクセス権限を付与してください")
             return False
         
-        # マルチ出力デバイスの詳細設定を確認
-        if multi_output_found:
-            print("\n=== マルチ出力デバイス詳細確認 ===")
-            try:
-                # マルチ出力デバイスのインデックスを取得
-                multi_output_index = None
-                for device in devices:
-                    if 'multi-output' in device['name'].lower():
-                        multi_output_index = device['index']
-                        break
-                
-                if multi_output_index is not None:
-                    # マルチ出力デバイスの詳細情報を取得
-                    multi_output_info = self.audio.get_device_info_by_index(multi_output_index)
-                    print(f"マルチ出力デバイス詳細:")
-                    print(f"  - 名前: {multi_output_info['name']}")
-                    print(f"  - 入力チャンネル: {multi_output_info['maxInputChannels']}")
-                    print(f"  - 出力チャンネル: {multi_output_info['maxOutputChannels']}")
-                    print(f"  - サンプルレート: {multi_output_info['defaultSampleRate']}")
-                    
-                    # マルチ出力デバイスが入力デバイスとして使用可能かチェック
-                    if multi_output_info['maxInputChannels'] > 0:
-                        print("  ✓ マルチ出力デバイスは入力として使用可能")
-                    else:
-                        print("  ⚠️  マルチ出力デバイスは入力として使用できません")
-                        print("     Audio MIDI Setupでマルチ出力デバイスの設定を確認してください")
-                        return False
-                        
-            except Exception as e:
-                print(f"マルチ出力デバイス詳細確認エラー: {e}")
+        # マイク音量テスト
+        print("\n=== マイク音量テスト ===")
+        try:
+            mic_index = self.find_microphone_device()
+            device_info = self.audio.get_device_info_by_index(mic_index)
+            print(f"テスト対象マイク: {device_info['name']}")
+            
+            # 短時間のテスト録音
+            stream = self.audio.open(
+                format=pyaudio.paInt16,
+                channels=1,
+                rate=44100,
+                input=True,
+                input_device_index=mic_index,
+                frames_per_buffer=1024
+            )
+            
+            print("3秒間のマイクテストを実行します...")
+            max_level = 0.0
+            for i in range(30):  # 3秒間
+                data = stream.read(1024, exception_on_overflow=False)
+                level = self._calculate_audio_level(data)
+                max_level = max(max_level, level)
+                if i % 10 == 0:
+                    print(f"  時間 {i//10 + 1}秒: 音声レベル = {level:.4f}")
+            
+            stream.stop_stream()
+            stream.close()
+            
+            print(f"最大音声レベル: {max_level:.4f}")
+            if max_level > 0.001:
+                print("✓ マイクが正常に動作しています")
+            else:
+                print("⚠️  マイクから音声が検出されませんでした")
+                print("   マイクの音量設定を確認してください")
                 return False
+                
+        except Exception as e:
+            print(f"マイクテストエラー: {e}")
+            return False
         
         print("=== 診断完了 ===")
-        return blackhole_found and multi_output_found
+        return microphone_found
     
-    def find_system_audio_device(self):
-        """システム音声（ループバック）デバイスを検索"""
+    def find_microphone_device(self):
+        """マイクデバイスを検索"""
         devices = self.get_audio_devices()
         
-        # BlackHoleを最優先で検索（入力チャンネルがあることを確認）
+        # マイクデバイスを検索
         for device in devices:
             device_name = device['name'].lower()
-            if 'blackhole' in device_name and device['channels'] > 0:
-                print(f"✓ システム音声デバイスを発見: {device['name']} (チャンネル: {device['channels']})")
+            if ('microphone' in device_name or 'mic' in device_name) and device['channels'] > 0:
+                print(f"✓ マイクデバイスを発見: {device['name']} (チャンネル: {device['channels']})")
                 return device['index']
         
-        # その他のループバックデバイスを検索
-        priority_keywords = [
-            'loopback', 'soundflower', 'multi-output', 'aggregate'
-        ]
-        
-        for keyword in priority_keywords:
-            for device in devices:
-                device_name = device['name'].lower()
-                if keyword in device_name and device['channels'] > 0:
-                    print(f"✓ システム音声デバイスを発見: {device['name']} (キーワード: {keyword}, チャンネル: {device['channels']})")
-                    return device['index']
-        
-        # その他のシステム音声デバイスを検索
-        for device in devices:
-            device_name = device['name'].lower()
-            if any(keyword in device_name for keyword in [
-                'system', 'stereo mix', 'what u hear'
-            ]) and device['channels'] > 0:
-                print(f"✓ システム音声デバイスを発見: {device['name']} (チャンネル: {device['channels']})")
-                return device['index']
-        
-        # システム音声デバイスが見つからない場合の警告
-        print("⚠️  警告: システム音声をキャプチャできるデバイスが見つかりません")
-        print("   現在のデバイス一覧:")
-        for device in devices:
-            print(f"     {device['index']}: {device['name']} (チャンネル: {device['channels']})")
-        print("\n   システム音声を録音するには、以下のいずれかをインストールしてください:")
-        print("   - BlackHole: brew install blackhole-2ch")
-        print("   - Loopback: https://rogueamoeba.com/loopback/")
-        print("   - Soundflower: https://github.com/mattingalls/Soundflower")
-        print("\n   インストール後、Audio MIDI Setupでマルチ出力デバイスを設定してください。")
-        
-        # デフォルトの入力デバイスを使用（警告付き）
+        # デフォルトの入力デバイスを使用
         default_device = self.audio.get_default_input_device_info()['index']
-        print(f"   デフォルトの入力デバイスを使用します: {devices[default_device]['name']}")
+        print(f"デフォルトの入力デバイスを使用: {devices[default_device]['name']}")
         return default_device
     
     def start_recording(self, callback: Optional[Callable] = None):
@@ -192,8 +142,8 @@ class AudioRecorder:
             return False
             
         try:
-            # システム音声デバイスを取得
-            device_index = self.find_system_audio_device()
+            # マイクデバイスを取得
+            device_index = self.find_microphone_device()
             
             # デバイスのサポートするチャンネル数を確認
             device_info = self.audio.get_device_info_by_index(device_index)
@@ -272,6 +222,13 @@ class AudioRecorder:
             try:
                 # 音声データを読み取り
                 data = self.stream.read(self.chunk_size, exception_on_overflow=False)
+                
+                # マイク感度調整を適用
+                data = self.apply_microphone_gain(data)
+                
+                # ノイズ除去を適用
+                data = self.apply_noise_reduction(data)
+                
                 self.audio_data.append(data)
                 
                 # 音声レベルを監視
@@ -324,6 +281,42 @@ class AudioRecorder:
         except Exception as e:
             print(f"音声レベル計算エラー: {e}")
             return 0.0
+    
+    def apply_noise_reduction(self, audio_data: bytes) -> bytes:
+        """音声データからノイズを除去"""
+        import numpy as np
+        from scipy import signal
+        
+        if not self.config['audio'].get('noise_reduction_enabled', True):
+            return audio_data
+        
+        # バイトデータをnumpy配列に変換
+        audio_array = np.frombuffer(audio_data, dtype=np.int16).astype(np.float32)
+        
+        # ノイズ閾値以下の音を減衰
+        noise_threshold = self.config['audio'].get('noise_threshold', 0.02) * 32768.0
+        audio_array = np.where(np.abs(audio_array) < noise_threshold, 
+                               audio_array * 0.1, audio_array)
+        
+        # ハイパスフィルタを適用（低周波ノイズを除去）
+        b, a = signal.butter(4, 100, 'high', fs=self.sample_rate)
+        filtered = signal.filtfilt(b, a, audio_array)
+        
+        return filtered.astype(np.int16).tobytes()
+    
+    def apply_microphone_gain(self, audio_data: bytes) -> bytes:
+        """マイク感度を調整"""
+        import numpy as np
+        
+        gain = self.config['audio'].get('microphone_gain', 2.0)
+        if gain == 1.0:
+            return audio_data
+        
+        audio_array = np.frombuffer(audio_data, dtype=np.int16).astype(np.float32)
+        audio_array = audio_array * gain
+        audio_array = np.clip(audio_array, -32768, 32767)
+        
+        return audio_array.astype(np.int16).tobytes()
     
     def _save_audio_data(self) -> str:
         """録音した音声データをWAVファイルに保存"""

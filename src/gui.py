@@ -198,6 +198,45 @@ class CMMuterGUI:
         )
         screen_check.grid(row=2, column=0, columnspan=2, sticky=tk.W, pady=(5, 0))
         
+        # マイク感度設定
+        ttk.Label(settings_frame, text="マイク感度:").grid(row=3, column=0, sticky=tk.W, pady=(10, 0))
+        self.mic_gain_var = tk.DoubleVar(value=self.config['audio'].get('microphone_gain', 2.0))
+        mic_gain_scale = ttk.Scale(
+            settings_frame, 
+            from_=1.0, 
+            to=5.0, 
+            variable=self.mic_gain_var,
+            command=self._update_mic_gain
+        )
+        mic_gain_scale.grid(row=3, column=1, sticky=(tk.W, tk.E), padx=(5, 0), pady=(10, 0))
+        
+        self.mic_gain_label = ttk.Label(settings_frame, text=f"{self.config['audio'].get('microphone_gain', 2.0):.1f}")
+        self.mic_gain_label.grid(row=3, column=2, padx=(5, 0), pady=(10, 0))
+        
+        # ノイズ除去設定
+        self.noise_reduction_var = tk.BooleanVar(value=self.config['audio'].get('noise_reduction_enabled', True))
+        noise_check = ttk.Checkbutton(
+            settings_frame, 
+            text="ノイズ除去を有効にする", 
+            variable=self.noise_reduction_var
+        )
+        noise_check.grid(row=4, column=0, columnspan=2, sticky=tk.W, pady=(5, 0))
+        
+        # ノイズ閾値設定
+        ttk.Label(settings_frame, text="ノイズ閾値:").grid(row=5, column=0, sticky=tk.W, pady=(5, 0))
+        self.noise_threshold_var = tk.DoubleVar(value=self.config['audio'].get('noise_threshold', 0.02))
+        noise_threshold_scale = ttk.Scale(
+            settings_frame, 
+            from_=0.01, 
+            to=0.1, 
+            variable=self.noise_threshold_var,
+            command=self._update_noise_threshold
+        )
+        noise_threshold_scale.grid(row=5, column=1, sticky=(tk.W, tk.E), padx=(5, 0))
+        
+        self.noise_threshold_label = ttk.Label(settings_frame, text=f"{self.config['audio'].get('noise_threshold', 0.02):.3f}")
+        self.noise_threshold_label.grid(row=5, column=2, padx=(5, 0))
+        
         settings_frame.columnconfigure(1, weight=1)
     
     def _create_status_section(self, parent, row):
@@ -377,6 +416,18 @@ class CMMuterGUI:
         self.threshold_label.config(text=f"{threshold:.2f}")
         self.audio_monitor.update_match_threshold(threshold)
     
+    def _update_mic_gain(self, value):
+        """マイク感度を更新"""
+        gain = float(value)
+        self.mic_gain_label.config(text=f"{gain:.1f}")
+        self.config['audio']['microphone_gain'] = gain
+    
+    def _update_noise_threshold(self, value):
+        """ノイズ閾値を更新"""
+        threshold = float(value)
+        self.noise_threshold_label.config(text=f"{threshold:.3f}")
+        self.config['audio']['noise_threshold'] = threshold
+    
     def _start_status_update(self):
         """状態更新タイマーを開始"""
         self._update_status()
@@ -476,6 +527,9 @@ class CMMuterGUI:
         try:
             # 現在の設定を更新
             self.config['audio']['match_threshold'] = self.threshold_var.get()
+            self.config['audio']['microphone_gain'] = self.mic_gain_var.get()
+            self.config['audio']['noise_reduction_enabled'] = self.noise_reduction_var.get()
+            self.config['audio']['noise_threshold'] = self.noise_threshold_var.get()
             
             with open('config.json', 'w', encoding='utf-8') as f:
                 json.dump(self.config, f, indent=2, ensure_ascii=False)

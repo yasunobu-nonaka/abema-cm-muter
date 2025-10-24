@@ -65,25 +65,10 @@ def check_system_requirements():
             print(f"✗ chromaprintの確認に失敗: {e}")
             return False
         
-        # BlackHoleの確認
-        if not check_blackhole_installation():
-            print("\n⚠️  BlackHoleがインストールされていません")
-            print("システム音声を録音するには、BlackHoleのインストールと設定が必要です。")
-            print("\nセットアップ手順:")
-            print("1. BlackHoleをインストール:")
-            print("   brew install blackhole-2ch")
-            print("\n2. Audio MIDI Setupを開く:")
-            print("   open -a 'Audio MIDI Setup'")
-            print("\n3. マルチ出力デバイスを作成:")
-            print("   - 左下の'+'ボタンをクリック")
-            print("   - 'マルチ出力デバイスを作成'を選択")
-            print("   - 'MacBook Air Speakers'と'BlackHole 2ch'の両方にチェック")
-            print("   - デバイス名を'Multi-Output Device'などに設定")
-            print("\n4. システム環境設定で出力デバイスを変更:")
-            print("   - システム環境設定 > サウンド > 出力")
-            print("   - 作成したマルチ出力デバイスを選択")
-            print("\n5. アプリケーションを再起動してテスト")
-            return False
+        # マイクアクセス権限の確認
+        print("✓ マイクベースアプローチを使用します")
+        print("   システム環境設定 > セキュリティとプライバシー > プライバシー > マイク")
+        print("   でアプリケーションにマイクアクセス権限を付与してください")
     
     elif system == 'windows':
         print("✓ Windowsが検出されました")
@@ -100,20 +85,20 @@ def check_system_requirements():
     return True
 
 
-def check_blackhole_installation():
-    """BlackHoleのインストール状況をチェック"""
+def check_microphone_access():
+    """マイクアクセス権限をチェック"""
     try:
         from audio_recorder import AudioRecorder
         # ダミー設定でAudioRecorderを作成
-        dummy_config = {"audio": {"sample_rate": 44100, "channels": 2, "chunk_size": 1024, "record_duration": 15, "match_threshold": 0.8, "silence_threshold": 0.01}}
+        dummy_config = {"audio": {"sample_rate": 44100, "channels": 1, "chunk_size": 1024, "record_duration": 15, "match_threshold": 0.8, "silence_threshold": 0.01}}
         recorder = AudioRecorder(dummy_config)
         devices = recorder.get_audio_devices()
         
-        # BlackHoleデバイスを検索
+        # マイクデバイスを検索
         for device in devices:
             device_name = device['name'].lower()
-            if 'blackhole' in device_name:
-                print(f"✓ BlackHoleが検出されました: {device['name']}")
+            if ('microphone' in device_name or 'mic' in device_name) and device['channels'] > 0:
+                print(f"✓ マイクデバイスが検出されました: {device['name']}")
                 recorder.cleanup()
                 return True
         
@@ -121,7 +106,7 @@ def check_blackhole_installation():
         return False
         
     except Exception as e:
-        print(f"BlackHole確認エラー: {e}")
+        print(f"マイク確認エラー: {e}")
         return False
 
 
@@ -160,30 +145,28 @@ def test_audio_devices():
     try:
         recorder = AudioRecorder({"audio": {"sample_rate": 44100, "channels": 2, "chunk_size": 1024, "record_duration": 15, "match_threshold": 0.8, "silence_threshold": 0.01}, "system": {"mute_volume": 0.0, "restore_volume": 0.7, "screen_dim_brightness": 0.1, "overlay_opacity": 0.9}, "gui": {"window_width": 600, "window_height": 500, "theme": "default"}})
         
-        # オーディオ設定の診断を実行
+        # マイク設定の診断を実行
         setup_ok = recorder.diagnose_audio_setup()
         
         devices = recorder.get_audio_devices()
         
         print("\n利用可能なオーディオデバイス:")
-        blackhole_found = False
+        microphone_found = False
         for device in devices:
             device_name = device['name']
-            is_system_device = any(keyword in device_name.lower() for keyword in [
-                'blackhole', 'loopback', 'soundflower', 'multi-output', 'aggregate'
-            ])
-            status = " [システム音声対応]" if is_system_device else ""
-            if 'blackhole' in device_name.lower():
-                blackhole_found = True
+            is_microphone = 'microphone' in device_name.lower() or 'mic' in device_name.lower()
+            status = " [マイクデバイス]" if is_microphone else ""
+            if is_microphone:
+                microphone_found = True
             print(f"  {device['index']}: {device_name} (チャンネル: {device['channels']}){status}")
         
-        if not blackhole_found:
-            print("\n⚠️  BlackHoleデバイスが見つかりません")
-            print("   システム音声を録音するには、BlackHoleのインストールが必要です")
+        if not microphone_found:
+            print("\n⚠️  マイクデバイスが見つかりません")
+            print("   マイクアクセス権限を確認してください")
         
-        system_device = recorder.find_system_audio_device()
-        device_info = recorder.audio.get_device_info_by_index(system_device)
-        print(f"\n選択されたシステム音声デバイス: {system_device} - {device_info['name']}")
+        mic_device = recorder.find_microphone_device()
+        device_info = recorder.audio.get_device_info_by_index(mic_device)
+        print(f"\n選択されたマイクデバイス: {mic_device} - {device_info['name']}")
         
         recorder.cleanup()
         return setup_ok
