@@ -100,31 +100,37 @@ class CMMuterGUI:
         
         # マウスホイールでスクロール
         def _on_mousewheel(event):
-            canvas.yview_scroll(int(-1*(event.delta/120)), "units")
+            print(f"マウスホイールイベント検出: delta={event.delta}")  # デバッグ用
+            
+            # macOSでのdelta値の処理を修正
+            if event.delta > 0:
+                # 上スクロール
+                canvas.yview_scroll(-1, "units")
+            elif event.delta < 0:
+                # 下スクロール
+                canvas.yview_scroll(1, "units")
+            
             return "break"
         
-        # フォーカスベースのマウスホイールバインド（最新のベストプラクティス）
-        def _bind_mousewheel(event):
-            """マウスがキャンバスに入った時にマウスホイールをバインド"""
-            canvas.bind_all("<MouseWheel>", _on_mousewheel)
-            canvas.bind_all("<Button-4>", lambda e: [canvas.yview_scroll(-1, "units"), "break"][1])
-            canvas.bind_all("<Button-5>", lambda e: [canvas.yview_scroll(1, "units"), "break"][1])
+        # シンプルで確実なマウスホイールバインド
+        def _bind_mousewheel():
+            """マウスホイールイベントをバインド"""
+            self.root.bind_all("<MouseWheel>", _on_mousewheel)
+            self.root.bind_all("<Button-4>", lambda e: [canvas.yview_scroll(-1, "units"), "break"][1])
+            self.root.bind_all("<Button-5>", lambda e: [canvas.yview_scroll(1, "units"), "break"][1])
         
-        def _unbind_mousewheel(event):
-            """マウスがキャンバスから出た時にマウスホイールをアンバインド"""
-            canvas.unbind_all("<MouseWheel>")
-            canvas.unbind_all("<Button-4>")
-            canvas.unbind_all("<Button-5>")
+        def _unbind_mousewheel():
+            """マウスホイールイベントをアンバインド"""
+            self.root.unbind_all("<MouseWheel>")
+            self.root.unbind_all("<Button-4>")
+            self.root.unbind_all("<Button-5>")
         
-        # キャンバスのフォーカスイベントにバインド
-        canvas.bind("<Enter>", _bind_mousewheel)
-        canvas.bind("<Leave>", _unbind_mousewheel)
+        # マウスホイールイベントをバインド
+        _bind_mousewheel()
         
         # ウィンドウクローズ時のクリーンアップ
         def _cleanup():
-            canvas.unbind_all("<MouseWheel>")
-            canvas.unbind_all("<Button-4>")
-            canvas.unbind_all("<Button-5>")
+            _unbind_mousewheel()
             self._on_closing()
         
         self.root.protocol("WM_DELETE_WINDOW", _cleanup)
