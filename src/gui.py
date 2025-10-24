@@ -384,7 +384,7 @@ class CMMuterGUI:
         self.is_recording = False
         self.recording_start_time = None
         self.record_button.config(text="録音開始")
-        self.recording_status_label.config(text="停止中", foreground="black")
+        self.recording_status_label.config(text="停止中", foreground="")
         self.recording_time_label.config(text="00:00")
         
         if filepath:
@@ -437,7 +437,7 @@ class CMMuterGUI:
         if self.audio_monitor.start_monitoring():
             self.is_monitoring = True
             self.monitor_button.config(text="監視停止")
-            self.monitoring_status_label.config(text="監視中", foreground="blue")
+            self.monitoring_status_label.config(text="監視中", foreground="green")
         else:
             messagebox.showerror("エラー", "監視を開始できませんでした")
     
@@ -446,13 +446,13 @@ class CMMuterGUI:
         self.audio_monitor.stop_monitoring()
         self.is_monitoring = False
         self.monitor_button.config(text="監視開始")
-        self.monitoring_status_label.config(text="停止中", foreground="black")
+        self.monitoring_status_label.config(text="停止中", foreground="")
         self.cm_detection_label.config(text="CM未検出", foreground="green")
     
     def _on_cm_detected(self, pattern, similarity):
         """CM検出時のコールバック"""
         self.cm_detected = True
-        self.cm_detection_label.config(text=f"CM検出: {similarity:.2f}", foreground="red")
+        self.cm_detection_label.config(text=f"CM検出: {similarity:.2f}", foreground="darkred")
         
         # ミュート
         if self.mute_enabled_var.get():
