@@ -87,33 +87,82 @@ class CMMuterGUI:
     
     def _create_widgets(self):
         """GUI要素を作成"""
-        # メインフレーム
-        main_frame = ttk.Frame(self.root, padding="10")
-        main_frame.grid(row=0, column=0, sticky=(tk.W, tk.E, tk.N, tk.S))
+        # スクロール可能なキャンバスとスクロールバーを作成
+        canvas = tk.Canvas(self.root)
+        scrollbar = ttk.Scrollbar(self.root, orient="vertical", command=canvas.yview)
+        scrollable_frame = ttk.Frame(canvas, padding="10")
+        
+        # スクロール領域を設定
+        scrollable_frame.bind(
+            "<Configure>",
+            lambda e: canvas.configure(scrollregion=canvas.bbox("all"))
+        )
+        
+        # マウスホイールでスクロール
+        def _on_mousewheel(event):
+            canvas.yview_scroll(int(-1*(event.delta/120)), "units")
+            return "break"  # イベントの伝播を停止
+        
+        # より確実なマウスホイールバインド
+        def _bind_mousewheel():
+            # ルートウィンドウにバインド
+            self.root.bind_all("<MouseWheel>", _on_mousewheel)
+            self.root.bind_all("<Button-4>", lambda e: [canvas.yview_scroll(-1, "units"), "break"][1])
+            self.root.bind_all("<Button-5>", lambda e: [canvas.yview_scroll(1, "units"), "break"][1])
+            
+            # キャンバスにもバインド
+            canvas.bind("<MouseWheel>", _on_mousewheel)
+            canvas.bind("<Button-4>", lambda e: [canvas.yview_scroll(-1, "units"), "break"][1])
+            canvas.bind("<Button-5>", lambda e: [canvas.yview_scroll(1, "units"), "break"][1])
+        
+        # ウィンドウが閉じられる時にバインドを解除
+        def _unbind_mousewheel():
+            self.root.unbind_all("<MouseWheel>")
+            self.root.unbind_all("<Button-4>")
+            self.root.unbind_all("<Button-5>")
+        
+        # マウスホイールイベントをバインド
+        _bind_mousewheel()
+        
+        # ウィンドウクローズ時にバインドを解除
+        self.root.protocol("WM_DELETE_WINDOW", lambda: [_unbind_mousewheel(), self._on_closing()])
+        
+        # キャンバスにフレームを配置
+        canvas.create_window((0, 0), window=scrollable_frame, anchor="nw")
+        canvas.configure(yscrollcommand=scrollbar.set)
+        
+        # キャンバスのサイズ変更時にフレームの幅を調整
+        def _configure_canvas(event):
+            canvas_width = event.width
+            canvas.itemconfig(canvas.find_all()[0], width=canvas_width)
+        
+        canvas.bind('<Configure>', _configure_canvas)
+        
+        # ウィジェットを配置
+        canvas.pack(side="left", fill="both", expand=True)
+        scrollbar.pack(side="right", fill="y")
         
         # タイトル
-        title_label = ttk.Label(main_frame, text="Abema TV CM Muter", font=("Arial", 16, "bold"))
+        title_label = ttk.Label(scrollable_frame, text="Abema TV CM Muter", font=("Arial", 16, "bold"))
         title_label.grid(row=0, column=0, columnspan=3, pady=(0, 20))
         
         # CMパターン録音セクション
-        self._create_recording_section(main_frame, 1)
+        self._create_recording_section(scrollable_frame, 1)
         
         # 音声監視セクション
-        self._create_monitoring_section(main_frame, 2)
+        self._create_monitoring_section(scrollable_frame, 2)
         
         # 設定セクション
-        self._create_settings_section(main_frame, 3)
+        self._create_settings_section(scrollable_frame, 3)
         
         # 状態表示セクション
-        self._create_status_section(main_frame, 4)
+        self._create_status_section(scrollable_frame, 4)
         
         # ボタンセクション
-        self._create_button_section(main_frame, 5)
+        self._create_button_section(scrollable_frame, 5)
         
         # グリッドの重みを設定
-        self.root.columnconfigure(0, weight=1)
-        self.root.rowconfigure(0, weight=1)
-        main_frame.columnconfigure(1, weight=1)
+        scrollable_frame.columnconfigure(1, weight=1)
     
     def _create_recording_section(self, parent, row):
         """録音セクションを作成"""
