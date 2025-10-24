@@ -59,8 +59,8 @@ class AudioMonitor:
             return False
         
         try:
-            # マイクデバイスを取得
-            device_index = self.recorder.find_microphone_device()
+            # システム音声デバイスを取得
+            device_index = self.recorder.find_system_audio_device()
             
             # デバイスのサポートするチャンネル数を確認
             device_info = self.audio.get_device_info_by_index(device_index)

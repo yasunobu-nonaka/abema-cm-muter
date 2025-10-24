@@ -45,8 +45,8 @@ class AudioRecorder:
         return devices
     
     def diagnose_audio_setup(self):
-        """マイク設定の診断を行う"""
-        print("=== マイク設定診断 ===")
+        """オーディオ設定の診断を行う"""
+        print("=== オーディオ設定診断 ===")
         
         # デバイス一覧を取得
         devices = self.get_audio_devices()
@@ -54,86 +54,137 @@ class AudioRecorder:
         # デフォルトデバイスを確認
         try:
             default_input = self.audio.get_default_input_device_info()
+            default_output = self.audio.get_default_output_device_info()
             print(f"デフォルト入力デバイス: {default_input['name']}")
+            print(f"デフォルト出力デバイス: {default_output['name']}")
         except Exception as e:
-            print(f"デフォルト入力デバイス取得エラー: {e}")
-            return False
+            print(f"デフォルトデバイス取得エラー: {e}")
         
-        # マイクデバイスの確認
-        microphone_found = False
+        # BlackHoleの状態を確認
+        blackhole_found = False
         for device in devices:
-            device_name = device['name'].lower()
-            if ('microphone' in device_name or 'mic' in device_name) and device['channels'] > 0:
-                microphone_found = True
-                print(f"✓ マイクデバイス: {device['name']}")
+            if 'blackhole' in device['name'].lower():
+                blackhole_found = True
+                print(f"BlackHoleデバイス: {device['name']}")
                 print(f"  - チャンネル数: {device['channels']}")
                 print(f"  - サンプルレート: {device['sample_rate']}")
                 break
         
-        if not microphone_found:
-            print("⚠️  マイクデバイスが見つかりません")
-            print("   システム環境設定 > セキュリティとプライバシー > プライバシー > マイク")
-            print("   でアプリケーションにマイクアクセス権限を付与してください")
+        if not blackhole_found:
+            print("⚠️  BlackHoleデバイスが見つかりません")
+            print("   以下のコマンドでインストールしてください:")
+            print("   brew install blackhole-2ch")
+        
+        # Aggregate Deviceの確認
+        aggregate_found = False
+        for device in devices:
+            if 'aggregate' in device['name'].lower():
+                aggregate_found = True
+                print(f"Aggregate Device: {device['name']}")
+                break
+        
+        if not aggregate_found:
+            print("⚠️  Aggregate Deviceが見つかりません")
+            print("   Audio MIDI SetupでAggregate Deviceを作成してください")
+        
+        # システム出力デバイスの確認
+        try:
+            default_output = self.audio.get_default_output_device_info()
+            if 'aggregate' not in default_output['name'].lower():
+                print("⚠️  システム出力デバイスがAggregate Deviceに設定されていません")
+                print(f"   現在の出力デバイス: {default_output['name']}")
+                print("   以下の手順で設定を変更してください:")
+                print("   1. システム環境設定 > サウンド > 出力")
+                print("   2. 'Aggregate Device'を選択")
+                print("   3. アプリケーションを再起動")
+                return False
+            else:
+                print(f"✓ システム出力デバイス: {default_output['name']}")
+        except Exception as e:
+            print(f"出力デバイス確認エラー: {e}")
             return False
         
-        # マイク音量テスト
-        print("\n=== マイク音量テスト ===")
-        try:
-            mic_index = self.find_microphone_device()
-            device_info = self.audio.get_device_info_by_index(mic_index)
-            print(f"テスト対象マイク: {device_info['name']}")
-            
-            # 短時間のテスト録音
-            stream = self.audio.open(
-                format=pyaudio.paInt16,
-                channels=1,
-                rate=44100,
-                input=True,
-                input_device_index=mic_index,
-                frames_per_buffer=1024
-            )
-            
-            print("3秒間のマイクテストを実行します...")
-            max_level = 0.0
-            for i in range(30):  # 3秒間
-                data = stream.read(1024, exception_on_overflow=False)
-                level = self._calculate_audio_level(data)
-                max_level = max(max_level, level)
-                if i % 10 == 0:
-                    print(f"  時間 {i//10 + 1}秒: 音声レベル = {level:.4f}")
-            
-            stream.stop_stream()
-            stream.close()
-            
-            print(f"最大音声レベル: {max_level:.4f}")
-            if max_level > 0.001:
-                print("✓ マイクが正常に動作しています")
-            else:
-                print("⚠️  マイクから音声が検出されませんでした")
-                print("   マイクの音量設定を確認してください")
-                return False
+        # Aggregate Deviceの詳細設定を確認
+        if aggregate_found:
+            print("\n=== Aggregate Device詳細確認 ===")
+            try:
+                # Aggregate Deviceのインデックスを取得
+                aggregate_index = None
+                for device in devices:
+                    if 'aggregate' in device['name'].lower():
+                        aggregate_index = device['index']
+                        break
                 
-        except Exception as e:
-            print(f"マイクテストエラー: {e}")
-            return False
+                if aggregate_index is not None:
+                    # Aggregate Deviceの詳細情報を取得
+                    aggregate_info = self.audio.get_device_info_by_index(aggregate_index)
+                    print(f"Aggregate Device詳細:")
+                    print(f"  - 名前: {aggregate_info['name']}")
+                    print(f"  - 入力チャンネル: {aggregate_info['maxInputChannels']}")
+                    print(f"  - 出力チャンネル: {aggregate_info['maxOutputChannels']}")
+                    print(f"  - サンプルレート: {aggregate_info['defaultSampleRate']}")
+                    
+                    # Aggregate Deviceが入力デバイスとして使用可能かチェック
+                    if aggregate_info['maxInputChannels'] > 0:
+                        print("  ✓ Aggregate Deviceは入力として使用可能")
+                    else:
+                        print("  ⚠️  Aggregate Deviceは入力として使用できません")
+                        print("     Audio MIDI SetupでAggregate Deviceの設定を確認してください")
+                        return False
+                        
+            except Exception as e:
+                print(f"Aggregate Device詳細確認エラー: {e}")
+                return False
         
         print("=== 診断完了 ===")
-        return microphone_found
+        return blackhole_found and aggregate_found
     
-    def find_microphone_device(self):
-        """マイクデバイスを検索"""
+    def find_system_audio_device(self):
+        """システム音声（ループバック）デバイスを検索"""
         devices = self.get_audio_devices()
         
-        # マイクデバイスを検索
+        # BlackHoleを最優先で検索（入力チャンネルがあることを確認）
         for device in devices:
             device_name = device['name'].lower()
-            if ('microphone' in device_name or 'mic' in device_name) and device['channels'] > 0:
-                print(f"✓ マイクデバイスを発見: {device['name']} (チャンネル: {device['channels']})")
+            if 'blackhole' in device_name and device['channels'] > 0:
+                print(f"✓ システム音声デバイスを発見: {device['name']} (チャンネル: {device['channels']})")
                 return device['index']
         
-        # デフォルトの入力デバイスを使用
+        # その他のループバックデバイスを検索
+        priority_keywords = [
+            'aggregate', 'loopback', 'soundflower', 'multi-output'
+        ]
+        
+        for keyword in priority_keywords:
+            for device in devices:
+                device_name = device['name'].lower()
+                if keyword in device_name and device['channels'] > 0:
+                    print(f"✓ システム音声デバイスを発見: {device['name']} (キーワード: {keyword}, チャンネル: {device['channels']})")
+                    return device['index']
+        
+        # その他のシステム音声デバイスを検索
+        for device in devices:
+            device_name = device['name'].lower()
+            if any(keyword in device_name for keyword in [
+                'system', 'stereo mix', 'what u hear'
+            ]) and device['channels'] > 0:
+                print(f"✓ システム音声デバイスを発見: {device['name']} (チャンネル: {device['channels']})")
+                return device['index']
+        
+        # システム音声デバイスが見つからない場合の警告
+        print("⚠️  警告: システム音声をキャプチャできるデバイスが見つかりません")
+        print("   現在のデバイス一覧:")
+        for device in devices:
+            print(f"     {device['index']}: {device['name']} (チャンネル: {device['channels']})")
+        print("\n   システム音声を録音するには、以下のいずれかをインストールしてください:")
+        print("   - BlackHole: brew install blackhole-2ch")
+        print("   - Loopback: https://rogueamoeba.com/loopback/")
+        print("   - Soundflower: https://github.com/mattingalls/Soundflower")
+        print("\n   インストール後、Audio MIDI Setupでマルチ出力デバイスを設定してください。")
+        
+        # デフォルトの入力デバイスを使用（警告付き）
         default_device = self.audio.get_default_input_device_info()['index']
-        print(f"デフォルトの入力デバイスを使用: {devices[default_device]['name']}")
+        print(f"   デフォルトの入力デバイスを使用します: {devices[default_device]['name']}")
         return default_device
     
     def start_recording(self, callback: Optional[Callable] = None):
@@ -142,8 +193,8 @@ class AudioRecorder:
             return False
             
         try:
-            # マイクデバイスを取得
-            device_index = self.find_microphone_device()
+            # システム音声デバイスを取得
+            device_index = self.find_system_audio_device()
             
             # デバイスのサポートするチャンネル数を確認
             device_info = self.audio.get_device_info_by_index(device_index)
