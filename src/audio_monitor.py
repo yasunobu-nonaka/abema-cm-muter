@@ -130,6 +130,12 @@ class AudioMonitor:
                 # 音声データを読み取り
                 data = self.stream.read(self.chunk_size, exception_on_overflow=False)
                 
+                # マイク感度調整を適用
+                data = self.recorder.apply_microphone_gain(data)
+                
+                # ノイズ除去を適用
+                data = self.recorder.apply_noise_reduction(data)
+                
                 # バッファに追加
                 with self.buffer_lock:
                     self.audio_buffer.append(data)

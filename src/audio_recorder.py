@@ -1,6 +1,7 @@
 """
 音声録音機能
-システム音声（再生中の音）をキャプチャしてCMパターンとして保存する
+マイクで音声を録音してCMパターンとして保存する
+ノイズ除去機能とマイク感度調整機能を含む
 """
 
 import pyaudio
@@ -14,7 +15,7 @@ import threading
 
 
 class AudioRecorder:
-    """システム音声を録音するクラス"""
+    """マイクで音声を録音するクラス（ノイズ除去・感度調整機能付き）"""
     
     def __init__(self, config: dict):
         self.config = config
@@ -74,27 +75,27 @@ class AudioRecorder:
             print("   以下のコマンドでインストールしてください:")
             print("   brew install blackhole-2ch")
         
-        # マルチ出力デバイスの確認
-        multi_output_found = False
+        # Aggregate Deviceの確認
+        aggregate_found = False
         for device in devices:
-            if 'multi-output' in device['name'].lower():
-                multi_output_found = True
-                print(f"マルチ出力デバイス: {device['name']}")
+            if 'aggregate' in device['name'].lower():
+                aggregate_found = True
+                print(f"Aggregate Device: {device['name']}")
                 break
         
-        if not multi_output_found:
-            print("⚠️  マルチ出力デバイスが見つかりません")
-            print("   Audio MIDI Setupでマルチ出力デバイスを作成してください")
+        if not aggregate_found:
+            print("⚠️  Aggregate Deviceが見つかりません")
+            print("   Audio MIDI SetupでAggregate Deviceを作成してください")
         
         # システム出力デバイスの確認
         try:
             default_output = self.audio.get_default_output_device_info()
-            if 'multi-output' not in default_output['name'].lower():
-                print("⚠️  システム出力デバイスがマルチ出力デバイスに設定されていません")
+            if 'aggregate' not in default_output['name'].lower():
+                print("⚠️  システム出力デバイスがAggregate Deviceに設定されていません")
                 print(f"   現在の出力デバイス: {default_output['name']}")
                 print("   以下の手順で設定を変更してください:")
                 print("   1. システム環境設定 > サウンド > 出力")
-                print("   2. 'Multi-Output Device'を選択")
+                print("   2. 'Aggregate Device'を選択")
                 print("   3. アプリケーションを再起動")
                 return False
             else:
@@ -103,40 +104,40 @@ class AudioRecorder:
             print(f"出力デバイス確認エラー: {e}")
             return False
         
-        # マルチ出力デバイスの詳細設定を確認
-        if multi_output_found:
-            print("\n=== マルチ出力デバイス詳細確認 ===")
+        # Aggregate Deviceの詳細設定を確認
+        if aggregate_found:
+            print("\n=== Aggregate Device詳細確認 ===")
             try:
-                # マルチ出力デバイスのインデックスを取得
-                multi_output_index = None
+                # Aggregate Deviceのインデックスを取得
+                aggregate_index = None
                 for device in devices:
-                    if 'multi-output' in device['name'].lower():
-                        multi_output_index = device['index']
+                    if 'aggregate' in device['name'].lower():
+                        aggregate_index = device['index']
                         break
                 
-                if multi_output_index is not None:
-                    # マルチ出力デバイスの詳細情報を取得
-                    multi_output_info = self.audio.get_device_info_by_index(multi_output_index)
-                    print(f"マルチ出力デバイス詳細:")
-                    print(f"  - 名前: {multi_output_info['name']}")
-                    print(f"  - 入力チャンネル: {multi_output_info['maxInputChannels']}")
-                    print(f"  - 出力チャンネル: {multi_output_info['maxOutputChannels']}")
-                    print(f"  - サンプルレート: {multi_output_info['defaultSampleRate']}")
+                if aggregate_index is not None:
+                    # Aggregate Deviceの詳細情報を取得
+                    aggregate_info = self.audio.get_device_info_by_index(aggregate_index)
+                    print(f"Aggregate Device詳細:")
+                    print(f"  - 名前: {aggregate_info['name']}")
+                    print(f"  - 入力チャンネル: {aggregate_info['maxInputChannels']}")
+                    print(f"  - 出力チャンネル: {aggregate_info['maxOutputChannels']}")
+                    print(f"  - サンプルレート: {aggregate_info['defaultSampleRate']}")
                     
-                    # マルチ出力デバイスが入力デバイスとして使用可能かチェック
-                    if multi_output_info['maxInputChannels'] > 0:
-                        print("  ✓ マルチ出力デバイスは入力として使用可能")
+                    # Aggregate Deviceが入力デバイスとして使用可能かチェック
+                    if aggregate_info['maxInputChannels'] > 0:
+                        print("  ✓ Aggregate Deviceは入力として使用可能")
                     else:
-                        print("  ⚠️  マルチ出力デバイスは入力として使用できません")
-                        print("     Audio MIDI Setupでマルチ出力デバイスの設定を確認してください")
+                        print("  ⚠️  Aggregate Deviceは入力として使用できません")
+                        print("     Audio MIDI SetupでAggregate Deviceの設定を確認してください")
                         return False
                         
             except Exception as e:
-                print(f"マルチ出力デバイス詳細確認エラー: {e}")
+                print(f"Aggregate Device詳細確認エラー: {e}")
                 return False
         
         print("=== 診断完了 ===")
-        return blackhole_found and multi_output_found
+        return blackhole_found and aggregate_found
     
     def find_system_audio_device(self):
         """システム音声（ループバック）デバイスを検索"""
@@ -151,7 +152,7 @@ class AudioRecorder:
         
         # その他のループバックデバイスを検索
         priority_keywords = [
-            'loopback', 'soundflower', 'multi-output', 'aggregate'
+            'aggregate', 'loopback', 'soundflower', 'multi-output'
         ]
         
         for keyword in priority_keywords:
@@ -272,6 +273,13 @@ class AudioRecorder:
             try:
                 # 音声データを読み取り
                 data = self.stream.read(self.chunk_size, exception_on_overflow=False)
+                
+                # マイク感度調整を適用
+                data = self.apply_microphone_gain(data)
+                
+                # ノイズ除去を適用
+                data = self.apply_noise_reduction(data)
+                
                 self.audio_data.append(data)
                 
                 # 音声レベルを監視
@@ -324,6 +332,42 @@ class AudioRecorder:
         except Exception as e:
             print(f"音声レベル計算エラー: {e}")
             return 0.0
+    
+    def apply_noise_reduction(self, audio_data: bytes) -> bytes:
+        """音声データからノイズを除去"""
+        import numpy as np
+        from scipy import signal
+        
+        if not self.config['audio'].get('noise_reduction_enabled', True):
+            return audio_data
+        
+        # バイトデータをnumpy配列に変換
+        audio_array = np.frombuffer(audio_data, dtype=np.int16).astype(np.float32)
+        
+        # ノイズ閾値以下の音を減衰
+        noise_threshold = self.config['audio'].get('noise_threshold', 0.02) * 32768.0
+        audio_array = np.where(np.abs(audio_array) < noise_threshold, 
+                               audio_array * 0.1, audio_array)
+        
+        # ハイパスフィルタを適用（低周波ノイズを除去）
+        b, a = signal.butter(4, 100, 'high', fs=self.sample_rate)
+        filtered = signal.filtfilt(b, a, audio_array)
+        
+        return filtered.astype(np.int16).tobytes()
+    
+    def apply_microphone_gain(self, audio_data: bytes) -> bytes:
+        """マイク感度を調整"""
+        import numpy as np
+        
+        gain = self.config['audio'].get('microphone_gain', 2.0)
+        if gain == 1.0:
+            return audio_data
+        
+        audio_array = np.frombuffer(audio_data, dtype=np.int16).astype(np.float32)
+        audio_array = audio_array * gain
+        audio_array = np.clip(audio_array, -32768, 32767)
+        
+        return audio_array.astype(np.int16).tobytes()
     
     def _save_audio_data(self) -> str:
         """録音した音声データをWAVファイルに保存"""

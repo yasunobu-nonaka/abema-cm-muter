@@ -74,14 +74,14 @@ def check_system_requirements():
             print("   brew install blackhole-2ch")
             print("\n2. Audio MIDI Setupを開く:")
             print("   open -a 'Audio MIDI Setup'")
-            print("\n3. マルチ出力デバイスを作成:")
+            print("\n3. Aggregate Deviceを作成:")
             print("   - 左下の'+'ボタンをクリック")
-            print("   - 'マルチ出力デバイスを作成'を選択")
-            print("   - 'MacBook Air Speakers'と'BlackHole 2ch'の両方にチェック")
-            print("   - デバイス名を'Multi-Output Device'などに設定")
-            print("\n4. システム環境設定で出力デバイスを変更:")
-            print("   - システム環境設定 > サウンド > 出力")
-            print("   - 作成したマルチ出力デバイスを選択")
+            print("   - 'Aggregate Deviceを作成'を選択")
+            print("   - 'MacBook Air Speakers'、'MacBook Air Microphone'、'BlackHole 2ch'にチェック")
+            print("   - デバイス名を'Aggregate Device'などに設定")
+            print("\n4. システム環境設定でデバイスを変更:")
+            print("   - システム環境設定 > サウンド > 出力: 'Aggregate Device'を選択")
+            print("   - システム環境設定 > サウンド > 入力: 'Aggregate Device'を選択")
             print("\n5. アプリケーションを再起動してテスト")
             return False
     
@@ -167,6 +167,7 @@ def test_audio_devices():
         
         print("\n利用可能なオーディオデバイス:")
         blackhole_found = False
+        aggregate_found = False
         for device in devices:
             device_name = device['name']
             is_system_device = any(keyword in device_name.lower() for keyword in [
@@ -175,11 +176,17 @@ def test_audio_devices():
             status = " [システム音声対応]" if is_system_device else ""
             if 'blackhole' in device_name.lower():
                 blackhole_found = True
+            if 'aggregate' in device_name.lower():
+                aggregate_found = True
             print(f"  {device['index']}: {device_name} (チャンネル: {device['channels']}){status}")
         
         if not blackhole_found:
             print("\n⚠️  BlackHoleデバイスが見つかりません")
             print("   システム音声を録音するには、BlackHoleのインストールが必要です")
+        
+        if not aggregate_found:
+            print("\n⚠️  Aggregate Deviceが見つかりません")
+            print("   Audio MIDI SetupでAggregate Deviceを作成してください")
         
         system_device = recorder.find_system_audio_device()
         device_info = recorder.audio.get_device_info_by_index(system_device)
