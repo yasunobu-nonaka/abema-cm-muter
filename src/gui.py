@@ -87,33 +87,98 @@ class CMMuterGUI:
     
     def _create_widgets(self):
         """GUI要素を作成"""
-        # メインフレーム
-        main_frame = ttk.Frame(self.root, padding="10")
-        main_frame.grid(row=0, column=0, sticky=(tk.W, tk.E, tk.N, tk.S))
+        # スクロール可能なキャンバスとスクロールバーを作成
+        canvas = tk.Canvas(self.root)
+        scrollbar = ttk.Scrollbar(self.root, orient="vertical", command=canvas.yview)
+        scrollable_frame = ttk.Frame(canvas, padding="10")
+        
+        # スクロール領域を設定
+        scrollable_frame.bind(
+            "<Configure>",
+            lambda e: canvas.configure(scrollregion=canvas.bbox("all"))
+        )
+        
+        # マウスホイールでスクロール
+        def _on_mousewheel(event):
+            import platform
+            system = platform.system().lower()
+            
+            print(f"マウスホイールイベント検出: delta={event.delta}, system={system}")  # デバッグ用
+            
+            # プラットフォーム別のdelta値処理
+            if system == 'windows':
+                # Windows: deltaは120の倍数
+                canvas.yview_scroll(int(-1*(event.delta/120)), "units")
+            else:
+                # macOS/Linux: deltaは1または-1
+                if event.delta > 0:
+                    # 上スクロール
+                    canvas.yview_scroll(-1, "units")
+                elif event.delta < 0:
+                    # 下スクロール
+                    canvas.yview_scroll(1, "units")
+            
+            return "break"
+        
+        # シンプルで確実なマウスホイールバインド
+        def _bind_mousewheel():
+            """マウスホイールイベントをバインド"""
+            self.root.bind_all("<MouseWheel>", _on_mousewheel)
+            self.root.bind_all("<Button-4>", lambda e: [canvas.yview_scroll(-1, "units"), "break"][1])
+            self.root.bind_all("<Button-5>", lambda e: [canvas.yview_scroll(1, "units"), "break"][1])
+        
+        def _unbind_mousewheel():
+            """マウスホイールイベントをアンバインド"""
+            self.root.unbind_all("<MouseWheel>")
+            self.root.unbind_all("<Button-4>")
+            self.root.unbind_all("<Button-5>")
+        
+        # マウスホイールイベントをバインド
+        _bind_mousewheel()
+        
+        # ウィンドウクローズ時のクリーンアップ
+        def _cleanup():
+            _unbind_mousewheel()
+            self._on_closing()
+        
+        self.root.protocol("WM_DELETE_WINDOW", _cleanup)
+        
+        # キャンバスにフレームを配置
+        canvas.create_window((0, 0), window=scrollable_frame, anchor="nw")
+        canvas.configure(yscrollcommand=scrollbar.set)
+        
+        # キャンバスのサイズ変更時にフレームの幅を調整
+        def _configure_canvas(event):
+            canvas_width = event.width
+            canvas.itemconfig(canvas.find_all()[0], width=canvas_width)
+        
+        canvas.bind('<Configure>', _configure_canvas)
+        
+        # ウィジェットを配置
+        canvas.pack(side="left", fill="both", expand=True)
+        scrollbar.pack(side="right", fill="y")
         
         # タイトル
-        title_label = ttk.Label(main_frame, text="Abema TV CM Muter", font=("Arial", 16, "bold"))
+        title_label = ttk.Label(scrollable_frame, text="Abema TV CM Muter", font=("Arial", 16, "bold"))
         title_label.grid(row=0, column=0, columnspan=3, pady=(0, 20))
         
         # CMパターン録音セクション
-        self._create_recording_section(main_frame, 1)
+        self._create_recording_section(scrollable_frame, 1)
         
         # 音声監視セクション
-        self._create_monitoring_section(main_frame, 2)
+        self._create_monitoring_section(scrollable_frame, 2)
         
         # 設定セクション
-        self._create_settings_section(main_frame, 3)
+        self._create_settings_section(scrollable_frame, 3)
         
         # 状態表示セクション
-        self._create_status_section(main_frame, 4)
+        self._create_status_section(scrollable_frame, 4)
         
         # ボタンセクション
-        self._create_button_section(main_frame, 5)
+        self._create_button_section(scrollable_frame, 5)
         
         # グリッドの重みを設定
-        self.root.columnconfigure(0, weight=1)
-        self.root.rowconfigure(0, weight=1)
-        main_frame.columnconfigure(1, weight=1)
+        scrollable_frame.columnconfigure(1, weight=1)
     
     def _create_recording_section(self, parent, row):
         """録音セクションを作成"""
@@ -319,7 +384,7 @@ class CMMuterGUI:
         self.is_recording = False
         self.recording_start_time = None
         self.record_button.config(text="録音開始")
-        self.recording_status_label.config(text="停止中", foreground="black")
+        self.recording_status_label.config(text="停止中", foreground="")
         self.recording_time_label.config(text="00:00")
         
         if filepath:
@@ -372,7 +437,7 @@ class CMMuterGUI:
         if self.audio_monitor.start_monitoring():
             self.is_monitoring = True
             self.monitor_button.config(text="監視停止")
-            self.monitoring_status_label.config(text="監視中", foreground="blue")
+            self.monitoring_status_label.config(text="監視中", foreground="green")
         else:
             messagebox.showerror("エラー", "監視を開始できませんでした")
     
@@ -381,13 +446,13 @@ class CMMuterGUI:
         self.audio_monitor.stop_monitoring()
         self.is_monitoring = False
         self.monitor_button.config(text="監視開始")
-        self.monitoring_status_label.config(text="停止中", foreground="black")
+        self.monitoring_status_label.config(text="停止中", foreground="")
         self.cm_detection_label.config(text="CM未検出", foreground="green")
     
     def _on_cm_detected(self, pattern, similarity):
         """CM検出時のコールバック"""
         self.cm_detected = True
-        self.cm_detection_label.config(text=f"CM検出: {similarity:.2f}", foreground="red")
+        self.cm_detection_label.config(text=f"CM検出: {similarity:.2f}", foreground="darkred")
         
         # ミュート
         if self.mute_enabled_var.get():
