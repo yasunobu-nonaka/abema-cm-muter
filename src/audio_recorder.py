@@ -166,21 +166,35 @@ class AudioRecorder:
         for device in devices:
             device_name = device['name'].lower()
             if any(keyword in device_name for keyword in [
-                'system', 'stereo mix', 'what u hear'
+                'system', 'stereo mix', 'what u hear', 'stereo', 'mix'
             ]) and device['channels'] > 0:
                 print(f"✓ システム音声デバイスを発見: {device['name']} (チャンネル: {device['channels']})")
                 return device['index']
         
         # システム音声デバイスが見つからない場合の警告
+        import platform
+        system = platform.system().lower()
+        
         print("⚠️  警告: システム音声をキャプチャできるデバイスが見つかりません")
         print("   現在のデバイス一覧:")
         for device in devices:
             print(f"     {device['index']}: {device['name']} (チャンネル: {device['channels']})")
-        print("\n   システム音声を録音するには、以下のいずれかをインストールしてください:")
-        print("   - BlackHole: brew install blackhole-2ch")
-        print("   - Loopback: https://rogueamoeba.com/loopback/")
-        print("   - Soundflower: https://github.com/mattingalls/Soundflower")
-        print("\n   インストール後、Audio MIDI Setupでマルチ出力デバイスを設定してください。")
+        
+        if system == 'darwin':  # macOS
+            print("\n   システム音声を録音するには、以下のいずれかをインストールしてください:")
+            print("   - BlackHole: brew install blackhole-2ch")
+            print("   - Loopback: https://rogueamoeba.com/loopback/")
+            print("   - Soundflower: https://github.com/mattingalls/Soundflower")
+            print("\n   インストール後、Audio MIDI SetupでAggregate Deviceを設定してください。")
+        elif system == 'windows':  # Windows
+            print("\n   Windowsでシステム音声を録音するには:")
+            print("   1. サウンド設定を開く")
+            print("   2. 録音タブで'Stereo Mix'を有効にする")
+            print("   3. または、'What U Hear'デバイスを有効にする")
+            print("   4. デバイスが表示されない場合は、サウンドドライバーを更新してください")
+        else:  # Linux
+            print("\n   Linuxでシステム音声を録音するには:")
+            print("   - PulseAudioの設定でループバックデバイスを有効にしてください")
         
         # デフォルトの入力デバイスを使用（警告付き）
         default_device = self.audio.get_default_input_device_info()['index']

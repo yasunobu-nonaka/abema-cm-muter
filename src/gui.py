@@ -100,15 +100,23 @@ class CMMuterGUI:
         
         # マウスホイールでスクロール
         def _on_mousewheel(event):
-            print(f"マウスホイールイベント検出: delta={event.delta}")  # デバッグ用
+            import platform
+            system = platform.system().lower()
             
-            # macOSでのdelta値の処理を修正
-            if event.delta > 0:
-                # 上スクロール
-                canvas.yview_scroll(-1, "units")
-            elif event.delta < 0:
-                # 下スクロール
-                canvas.yview_scroll(1, "units")
+            print(f"マウスホイールイベント検出: delta={event.delta}, system={system}")  # デバッグ用
+            
+            # プラットフォーム別のdelta値処理
+            if system == 'windows':
+                # Windows: deltaは120の倍数
+                canvas.yview_scroll(int(-1*(event.delta/120)), "units")
+            else:
+                # macOS/Linux: deltaは1または-1
+                if event.delta > 0:
+                    # 上スクロール
+                    canvas.yview_scroll(-1, "units")
+                elif event.delta < 0:
+                    # 下スクロール
+                    canvas.yview_scroll(1, "units")
             
             return "break"
         
